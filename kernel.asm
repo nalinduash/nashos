@@ -114,6 +114,7 @@ detect_memory:
     call print_decimal
     call print_M_suffix
     jmp .sum_total
+
 	.no_e801:
 		mov si, not_supported_str
 		call print_string
@@ -144,7 +145,7 @@ detect_memory:
 		div ecx                         ; EAX = EAX / ECX (total KB / 1024). Result (MB) is in EAX.
 										; EDX will contain remainder (not needed for printing MB).
 		
-		call print_decimal      ; Print the final value in EAX (total MB)
+		call print_decimal              ; Print the final value in EAX (total MB)
 		call print_M_suffix
 		ret
 
@@ -193,9 +194,8 @@ detect_drives:
     push es
     mov ax, 0x0040
     mov es, ax
-    ; FIXED: Read only the BYTE at this address, not a word.
     mov al, [es:0x0075]     ; BIOS Data Area holds number of HDDs in one byte
-    mov ah, 0           ; Clear the upper byte of AX to prevent garbage
+    mov ah, 0               ; Clear the upper byte of AX to prevent garbage
     pop es
     call print_decimal      ; Print the correct value from AX
     call print_newline
@@ -204,16 +204,18 @@ detect_drives:
 detect_mouse:
     mov si, mouse_label
     call print_string
-    mov ax, 0
-    int 0x33
+    mov ax, 0               ; Setting AX to 0000h selects Function 0(Initialize Mouse System) for the BIOS Mouse Services(0x33)
+    int 0x33                ; Call BIOS interrupt to detect mouse
     cmp ax, 0
     je .no_mouse
     mov si, mouse_found_str
     call print_string
     jmp .mouse_done
+
 	.no_mouse:
 		mov si, mouse_notfound_str
 		call print_string
+
 	.mouse_done:
 		call print_newline
 		ret
@@ -354,45 +356,44 @@ string_compare:
     pusha
 
 	.loop:
-		mov al, [si]
-		mov ah, [di]
+		mov al, [si]        ; Here SI points to the command buffer
+		mov ah, [di]        ; Here DI points to the command to compare such as "info", "help", etc.
 		cmp al, ah
 		jne .notequal
-		cmp al, 0
+		cmp al, 0           ; Check if we reached the end of the both string. Which means they are completely equal.
 		je .equal
-		inc si
-		inc di
+		inc si              ; Increment SI to point to the next character in the command buffer
+		inc di              ; Increment DI to point to the next character in the command to compare
 		jmp .loop
 	.notequal:
 
 		popa
-		cmp ax, bx
+		cmp ax, bx          ; Set the ZF if the strings are not equal (0). This helps to execute "je handle_info_cmd" and etc.
 		ret
 
 	.equal:
 		popa
-		cmp ax, ax
+		cmp ax, ax          ; Set the ZF if the strings are equal (1). This helps to execute "je handle_info_cmd" and etc.
 		ret
 
-print_decimal:
-    ; This now needs to print a 32-bit number from EAX
+print_decimal:              
     pusha
-    mov cx, 0
-    mov ebx, 10
+    mov cx, 0               ; Use this to count how many digits we push onto the stack.
+    mov ebx, 10             ; EBX will serve as the divisor(10)
 	.div_loop:
-		mov edx, 0
-		div ebx             ; Divide EDX:EAX by EBX
-		push edx            ; Push remainder
-		inc cx
-		cmp eax, 0
+		mov edx, 0          ; Clears the EDX
+		div ebx             ; Divide EDX by EBX, The result of the division is stored in EAX, remainder is stored in EDX
+		push edx            ; Push remainder(current) onto the stack
+		inc cx              ; Increment the digit count
+		cmp eax, 0          
 		jne .div_loop
 	.print_loop:
 		pop eax             ; Pop a digit into EAX
-		add al, '0'
+		add al, '0'         ; Convert the digit to ASCII by adding '0'
 		mov ah, 0Eh
 		int 10h
-		loop .print_loop
-		popa
+		loop .print_loop    ; Loop until all digits are printed
+		popa                
 		ret
 
 clear_screen:
